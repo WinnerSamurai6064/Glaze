@@ -1,0 +1,6 @@
+{
+  "name": "Glaze",
+  "description": "A premium, OLED-black social hub fueled by glass morphism, glowing orange accents, and rich interactions. Direct timeline feed, profile engines, content curation, and media cropping.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

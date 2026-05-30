@@ -1,0 +1,64 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Space Grotesk", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-brand-orange: #ff6b00;
+  --color-brand-orange-hover: #e05e00;
+  --color-glass-dark: rgba(10, 10, 10, 0.7);
+  --color-glass-border: rgba(255, 107, 0, 0.15);
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #000000;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #222222;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #ff6b00;
+}
+
+/* Glassmorphism custom classes */
+.glass-panel {
+  background-color: rgba(10, 10, 10, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 107, 0, 0.08);
+}
+
+.glass-panel-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel-hover:hover {
+  background-color: rgba(20, 20, 20, 0.85);
+  border-color: rgba(255, 107, 0, 0.25);
+  box-shadow: 0 0 15px rgba(255, 107, 0, 0.05);
+}
+
+.orange-glow-text {
+  text-shadow: 0 0 12px rgba(255, 107, 0, 0.4);
+}
+
+.orange-glow-border {
+  box-shadow: 0 0 15px rgba(255, 107, 0, 0.15);
+}
+
+/* Ensure OLED Black Base */
+body {
+  background-color: #000000;
+  color: #ffffff;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
