@@ -4,7 +4,8 @@
  */
 
 import React, { useState } from 'react';
-import { Image, Send, X, ShieldAlert } from 'lucide-react';
+import { PickerOverlay } from 'filestack-react';
+import { Image, Send, X } from 'lucide-react';
 import { User } from '../types';
 
 interface CreatePostProps {
@@ -12,10 +13,17 @@ interface CreatePostProps {
   onPostCreated: (content: string, image?: string) => void;
 }
 
+const FILESTACK_API_KEY = import.meta.env.VITE_FILESTACK_API_KEY || import.meta.env.FILESTACK_API_KEY || '';
+
+function getFilestackUrl(result: any): string {
+  const file = result?.filesUploaded?.[0] || result?.filesUploaded?.[0]?.url || result;
+  return file?.url || file?.handle ? file.url || `https://cdn.filestackcontent.com/${file.handle}` : '';
+}
+
 export function CreatePost({ currentUser, onPostCreated }: CreatePostProps) {
   const [content, setContent] = useState('');
   const [imageUrl, setImageUrl] = useState('');
-  const [showImageInput, setShowImageInput] = useState(false);
+  const [showPicker, setShowPicker] = useState(false);
   const CHAR_LIMIT = 280;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -23,26 +31,38 @@ export function CreatePost({ currentUser, onPostCreated }: CreatePostProps) {
     if (!content.trim() || content.length > CHAR_LIMIT) return;
 
     onPostCreated(content, imageUrl.trim() ? imageUrl.trim() : undefined);
-    
-    // Reset form
     setContent('');
     setImageUrl('');
-    setShowImageInput(false);
+    setShowPicker(false);
   };
 
-  const imagePresets = [
-    { name: 'Phaser Corridors', url: 'https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop&q=80' },
-    { name: 'OLED Abstract', url: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80' },
-    { name: 'Cyberpunk Retro', url: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?w=800&auto=format&fit=crop&q=80' }
-  ];
+  const handleUploadDone = (result: any) => {
+    const uploadedUrl = getFilestackUrl(result);
+    if (uploadedUrl) {
+      setImageUrl(uploadedUrl);
+    }
+    setShowPicker(false);
+  };
 
   const charLeft = CHAR_LIMIT - content.length;
   const ratio = content.length / CHAR_LIMIT;
 
   return (
     <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-white/5 shadow-lg relative overflow-hidden transition-all duration-300">
-      {/* Glow highlight strip on top */}
       <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-brand-orange/40 to-transparent" />
+
+      {showPicker && FILESTACK_API_KEY && (
+        <PickerOverlay
+          apikey={FILESTACK_API_KEY}
+          pickerOptions={{
+            accept: ['image/*'],
+            maxFiles: 1,
+            fromSources: ['local_file_system', 'url', 'imagesearch', 'instagram', 'facebook']
+          }}
+          onUploadDone={handleUploadDone}
+          onError={() => setShowPicker(false)}
+        />
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex items-start space-x-3.5">
@@ -58,100 +78,51 @@ export function CreatePost({ currentUser, onPostCreated }: CreatePostProps) {
               rows={3}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="Post a terminal broadcast..."
+              placeholder="What's happening?"
               className="w-full bg-[#050505] text-white border border-white/5 focus:border-brand-orange/40 focus:ring-0 placeholder-gray-500 rounded-xl px-4 py-3 text-sm focus:outline-none resize-none transition-all font-sans"
             />
           </div>
         </div>
 
-        {/* Dynamic Image Insertion helper */}
-        {showImageInput && (
-          <div className="ml-0 sm:ml-14 bg-black/60 border border-white/10 p-3.5 rounded-xl space-y-3.5 animate-fadeIn">
-            <div className="flex items-center justify-between border-b border-white/5 pb-2">
-              <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider font-mono">
-                Asset Simulation URL
-              </label>
-              <button
-                id="close-image-input-btn"
-                type="button"
-                onClick={() => {
-                  setImageUrl('');
-                  setShowImageInput(false);
-                }}
-                className="text-gray-400 hover:text-white"
-              >
-                <X size={15} />
-              </button>
-            </div>
-            
-            <input
-              id="image-url-manual-input"
-              type="url"
-              value={imageUrl}
-              onChange={(e) => setImageUrl(e.target.value)}
-              placeholder="Paste any Unsplash image URL..."
-              className="w-full bg-black/80 border border-white/10 text-white rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-brand-orange font-mono"
+        {imageUrl.trim() && (
+          <div className="ml-0 sm:ml-14 relative rounded-xl overflow-hidden border border-white/10 max-h-56 bg-black/60 animate-fadeIn">
+            <button
+              type="button"
+              onClick={() => setImageUrl('')}
+              className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-black/70 text-white hover:bg-black border border-white/10"
+              aria-label="Remove image"
+            >
+              <X size={14} />
+            </button>
+            <img
+              src={imageUrl}
+              alt="Post attachment preview"
+              className="w-full object-cover max-h-56"
             />
-
-            {/* Presets Grid to help user instantly inject elegant assets */}
-            <div className="space-y-1.5">
-              <p className="text-[10px] font-mono text-gray-500 uppercase tracking-widest">
-                Presets (Click to apply)
-              </p>
-              <div className="grid grid-cols-3 gap-2">
-                {imagePresets.map((preset) => (
-                  <button
-                    key={preset.name}
-                    type="button"
-                    onClick={() => setImageUrl(preset.url)}
-                    className={`p-1.5 text-[9px] font-mono border rounded-lg transition-all truncate text-center ${
-                      imageUrl === preset.url
-                        ? 'border-brand-orange bg-brand-orange/10 text-white'
-                        : 'border-white/5 bg-white/[0.02] text-gray-400 hover:text-white hover:bg-white/[0.05]'
-                    }`}
-                  >
-                    {preset.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {imageUrl.trim() && (
-              <div className="relative rounded-lg overflow-hidden border border-white/10 max-h-40">
-                <img
-                  src={imageUrl}
-                  alt="Attachment preview"
-                  className="w-full object-cover max-h-40"
-                  onError={(e) => {
-                    // Fail gracefully
-                    (e.target as HTMLElement).style.display = 'none';
-                  }}
-                />
-              </div>
-            )}
           </div>
         )}
 
-        {/* Footer actions of drafting card */}
         <div className="flex items-center justify-between border-t border-white/5 pt-3 ml-0 sm:ml-14">
           <div className="flex items-center space-x-1 sm:space-x-2">
             <button
               id="post-creator-add-image-icon-btn"
               type="button"
-              onClick={() => setShowImageInput(!showImageInput)}
+              onClick={() => setShowPicker(true)}
+              disabled={!FILESTACK_API_KEY}
               className={`p-2 rounded-xl transition-all ${
-                showImageInput || imageUrl
+                imageUrl
                   ? 'bg-brand-orange/15 text-brand-orange border border-brand-orange/25'
-                  : 'text-gray-400 hover:text-white hover:bg-white/[0.03]'
+                  : FILESTACK_API_KEY
+                    ? 'text-gray-400 hover:text-white hover:bg-white/[0.03]'
+                    : 'text-gray-700 cursor-not-allowed border border-white/5'
               }`}
-              title="Add simulated attachment"
+              title={FILESTACK_API_KEY ? 'Add image' : 'Filestack API key missing'}
             >
               <Image size={18} />
             </button>
           </div>
 
           <div className="flex items-center space-x-3.5">
-            {/* Character limit spinner */}
             {content.length > 0 && (
               <div className="flex items-center space-x-2">
                 <span className={`text-[10px] font-mono ${charLeft < 20 ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
@@ -181,7 +152,7 @@ export function CreatePost({ currentUser, onPostCreated }: CreatePostProps) {
             )}
 
             <button
-              id="broadcast-send-submit-btn"
+              id="post-send-submit-btn"
               type="submit"
               disabled={!content.trim() || content.length > CHAR_LIMIT}
               className={`px-4 sm:px-5 py-2 rounded-full text-xs font-bold tracking-wider uppercase font-sans transition-all flex items-center space-x-1.5 shadow-md ${
@@ -190,7 +161,7 @@ export function CreatePost({ currentUser, onPostCreated }: CreatePostProps) {
                   : 'bg-white/5 text-gray-500 cursor-not-allowed border border-white/5'
               }`}
             >
-              <span>Broadcast</span>
+              <span>Post</span>
               <Send size={12} />
             </button>
           </div>
