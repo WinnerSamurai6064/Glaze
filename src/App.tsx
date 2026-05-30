@@ -15,7 +15,7 @@ import { SearchModule } from './components/SearchModule';
 import { ProfileEditModal } from './components/ProfileEditModal';
 import { dbInstance } from './db';
 import { User, Post, Notification } from './types';
-import { ShieldCheck, LogIn, Mail, ArrowRight, Compass } from 'lucide-react';
+import { ArrowRight, Compass } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('feed');
@@ -25,19 +25,12 @@ export default function App() {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const [authReady, setAuthReady] = useState<boolean>(dbInstance.isAuthReady());
-  
-  // Database status diagnostics
   const [dbStatus, setDbStatus] = useState<any>(null);
-  
-  // Searching and selection
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [focusedUser, setFocusedUser] = useState<User | null>(null);
   const [showEditModal, setShowEditModal] = useState<boolean>(false);
-  
-  // Custom toast notification structure
   const [toast, setToast] = useState<string | null>(null);
 
-  // Auth and sync listener
   useEffect(() => {
     const handleAuthChange = (user: User | null) => {
       setCurrentUser(user);
@@ -47,8 +40,7 @@ export default function App() {
       }
     };
     dbInstance.registerAuthListener(handleAuthChange);
-    
-    // Check db status on boot
+
     dbInstance.getDatabaseStatus().then(status => {
       setDbStatus(status);
     }).catch(() => {});
@@ -94,23 +86,23 @@ export default function App() {
   const handlePostCreated = async (content: string, image?: string) => {
     try {
       await dbInstance.createPost(content, image);
-      showToast('Transmission broadcasted successfully!');
+      showToast('Post created successfully.');
       refreshData();
     } catch (e: any) {
-      showToast(e.message || 'Transmission failed.');
+      showToast(e.message || 'Post failed.');
     }
   };
 
-  // Google Authentication handler
-  const handleGoogleLogin = async () => {
+  const handleTestModeEnter = async () => {
     try {
-      showToast('Connecting with Google authentication...');
-      const user = await dbInstance.loginWithGoogle();
+      showToast('Starting test session...');
+      const user = await dbInstance.enterTestMode();
       setCurrentUser(user);
-      showToast(`Welcome count, ${user.displayName || 'Explorer'}!`);
+      setFocusedUser(user);
+      showToast(`Welcome, ${user.displayName || 'Glaze Tester'}.`);
       refreshData();
     } catch (e: any) {
-      showToast(e.message || 'Authentication failed.');
+      showToast(e.message || 'Could not start test session.');
     }
   };
 
@@ -120,19 +112,18 @@ export default function App() {
       setCurrentUser(null);
       setFocusedUser(null);
       setActiveTab('feed');
-      showToast('Logged out of session.');
+      showToast('Test session ended.');
     } catch (e: any) {
       showToast('Error during logout.');
     }
   };
 
-  // Follow states
   const handleFollowToggle = async (userId: string) => {
     try {
       await dbInstance.toggleFollow(userId);
       refreshData();
     } catch (e: any) {
-      showToast(e.message || 'Follow toggling failed.');
+      showToast(e.message || 'Follow action failed.');
     }
   };
 
@@ -140,14 +131,13 @@ export default function App() {
     return followingIds.includes(userId);
   };
 
-  // Navigation handlers
   const handleSelectUser = async (username: string) => {
     const foundUser = await dbInstance.getUserProfile(username);
     if (foundUser) {
       setFocusedUser(foundUser);
       setActiveTab('user_profile');
     } else {
-      showToast('Pilot profile not found');
+      showToast('Profile not found');
     }
   };
 
@@ -161,7 +151,7 @@ export default function App() {
     if (foundPost) {
       setSearchQuery(foundPost.authorName);
       setActiveTab('explore');
-      showToast(`Scanning signals related to matching post...`);
+      showToast('Opening related post results...');
     }
   };
 
@@ -180,7 +170,7 @@ export default function App() {
       refreshData();
       showToast('Profile updated successfully.');
     } catch (e: any) {
-      showToast(e.message || 'Profile modification failed.');
+      showToast(e.message || 'Profile update failed.');
     }
   };
 
@@ -198,8 +188,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#000000] text-white flex flex-col md:flex-row max-w-7xl mx-auto overflow-hidden font-sans relative" id="glaze-root">
-      
-      {/* Toast Overlay Banner */}
       {toast && (
         <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 glass-panel rounded-full py-3 px-6 border-brand-orange/40 text-xs font-mono text-white flex items-center space-x-2 animate-bounce uppercase tracking-wide shadow-2xl shadow-brand-orange/20" id="glaze-toast">
           <span className="w-1.5 h-1.5 rounded-full bg-brand-orange animate-ping" />
@@ -207,13 +195,9 @@ export default function App() {
         </div>
       )}
 
-      {/* Unauthenticated Splash Screen Overlay */}
       {!currentUser ? (
         <div className="flex-1 flex flex-col items-center justify-center p-4 min-h-screen bg-[#020202] text-white animate-fadeIn" id="welcome-container">
-          
           <div className="w-full max-w-md glass-panel p-6 sm:p-8 rounded-2xl border border-white/5 shadow-2xl relative space-y-6 text-center" id="welcome-card">
-            
-            {/* Top decorative orange filament glow */}
             <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-brand-orange to-transparent" />
 
             <div className="space-y-2">
@@ -226,23 +210,18 @@ export default function App() {
               </p>
             </div>
 
-            {/* Premium Google Auth Continue block */}
             <div className="space-y-4 pt-3">
               <button
-                id="login-google-button"
-                onClick={handleGoogleLogin}
-                className="w-full py-3.5 bg-white text-black hover:bg-gray-100 text-xs font-bold font-sans rounded-xl tracking-wider uppercase transition-all flex items-center justify-center space-x-2 shadow-md hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
+                id="enter-test-mode-button"
+                onClick={handleTestModeEnter}
+                className="w-full py-3.5 bg-brand-orange text-white hover:bg-brand-orange-hover text-xs font-bold font-sans rounded-xl tracking-wider uppercase transition-all flex items-center justify-center space-x-2 shadow-md hover:scale-[1.01] active:scale-[0.99] cursor-pointer"
               >
-                <img
-                  src="https://images.unsplash.com/photo-1573804633927-bfcbcd909acd?w=40&auto=format&fit=crop"
-                  alt="Google logo"
-                  className="w-4 h-4 object-contain"
-                />
-                <span>Continue with Google</span>
+                <Compass size={16} />
+                <span>Enter Glaze Test Mode</span>
+                <ArrowRight size={15} />
               </button>
             </div>
 
-            {/* Diagnostic Database Status Info Banner */}
             {dbStatus && !dbStatus.postgresActive && (
               <div className="text-[10px] text-gray-500 font-mono tracking-wide pt-4 border-t border-white/5 space-y-1 text-left" id="database-status-diagnostic">
                 <div className="flex items-center space-x-1.5 text-brand-orange font-semibold">
@@ -250,12 +229,11 @@ export default function App() {
                   <span>PostgreSQL Database Offline</span>
                 </div>
                 <p className="text-[9px] leading-relaxed text-gray-600 font-sans">
-                  The application is running in dynamic local memory fallback mode. Configure DATABASE_URL in secrets to activate durable cloud SQL reads/writes.
+                  Add DATABASE_URL in Vercel environment variables to activate durable cloud SQL reads and writes.
                 </p>
               </div>
             )}
 
-            {/* Branded Footer */}
             <div className="text-[10px] text-gray-600 font-mono tracking-wider pt-2 border-t border-white/5">
               Built by TREYTEK ©
             </div>
@@ -263,8 +241,6 @@ export default function App() {
         </div>
       ) : (
         <>
-          {/* Main Layout containing sidebars */}
-          {/* Left Sidebar */}
           <Sidebar
             activeTab={activeTab === 'user_profile' ? 'profile' : activeTab}
             setActiveTab={(tab) => {
@@ -282,10 +258,7 @@ export default function App() {
             onLogout={handleLogout}
           />
 
-          {/* Center Main Curation Feed (Scrollable) */}
           <main className="flex-1 md:border-r border-white/10 overflow-y-auto px-4 sm:px-6 py-6 pb-24 md:pb-6 space-y-6 max-h-screen">
-            
-            {/* Header branding overlay ONLY shown on mobile */}
             <div className="flex md:hidden items-center justify-between border-b border-white/10 pb-3">
               <div 
                 className="flex items-center space-x-2 cursor-pointer"
@@ -316,13 +289,12 @@ export default function App() {
               )}
             </div>
 
-            {/* Navigation Routes Router */}
             {activeTab === 'feed' && (
               <div className="space-y-6 animate-fadeIn">
                 <div className="pb-2 border-b border-white/5 flex items-center justify-between">
                   <h2 className="font-bold text-lg text-white font-sans flex items-center space-x-2">
                     <span className="w-2 h-2 rounded-full bg-brand-orange orange-glow-border animate-ping" />
-                    <span>Timeline Broadcasts</span>
+                    <span>Home</span>
                   </h2>
                 </div>
 
@@ -388,7 +360,6 @@ export default function App() {
             )}
           </main>
 
-          {/* Right Sidebar - Desktop ONLY */}
           <RightSidebar
             currentUser={currentUser}
             allUsers={allUsers}
@@ -398,7 +369,6 @@ export default function App() {
             onSearch={handleSearchTrigger}
           />
 
-          {/* Edit Profile Configuration Overlay Modal */}
           {showEditModal && currentUser && (
             <ProfileEditModal
               currentUser={currentUser}
