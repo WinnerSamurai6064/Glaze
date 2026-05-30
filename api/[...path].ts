@@ -1,14 +1,10 @@
 import pg from 'pg';
-import admin from 'firebase-admin';
-import firebaseConfig from '../firebase-applet-config.json';
 
 const { Pool } = pg;
 
 let pool: pg.Pool | null = null;
 let initPromise: Promise<void> | null = null;
 let pgError: string | null = null;
-let firebaseAdminReady = false;
-let firebaseAdminErr: string | null = null;
 
 const mockUsers: any[] = [];
 const mockPosts: any[] = [];
@@ -17,19 +13,6 @@ const mockLikes: { user_id: string; post_id: string }[] = [];
 const mockReposts: { user_id: string; post_id: string }[] = [];
 const mockFollows: { follower_id: string; following_id: string }[] = [];
 const mockNotifications: any[] = [];
-
-function initFirebaseAdmin() {
-  if (firebaseAdminReady || firebaseAdminErr) return;
-
-  try {
-    if (admin.apps.length === 0) {
-      admin.initializeApp({ projectId: firebaseConfig.projectId });
-    }
-    firebaseAdminReady = true;
-  } catch (error: any) {
-    firebaseAdminErr = error.message || String(error);
-  }
-}
 
 function getPool() {
   if (pool) return pool;
@@ -196,11 +179,15 @@ function notificationFromRow(row: any) {
   };
 }
 
-function decodeJwtPayload(token: string) {
+function decodeTestToken(token: string) {
   const payload = token.split('.')[1];
   if (!payload) return null;
-  const json = Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
-  return JSON.parse(json);
+  try {
+    const json = Buffer.from(payload.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
 }
 
 async function getAuthUser(req: any) {
@@ -210,30 +197,15 @@ async function getAuthUser(req: any) {
   }
 
   const token = authHeader.split('Bearer ')[1];
-  initFirebaseAdmin();
-
-  try {
-    if (firebaseAdminReady) {
-      const decoded = await admin.auth().verifyIdToken(token);
-      return {
-        uid: decoded.uid,
-        email: decoded.email || `${decoded.uid}@glaze.local`,
-        name: decoded.name || decoded.email?.split('@')[0] || 'Glaze User',
-        picture: decoded.picture || ''
-      };
-    }
-  } catch (error) {
-    // Vercel preview test fallback below keeps auth usable while Firebase Admin credentials are finalized.
+  const decoded = decodeTestToken(token);
+  if (!decoded?.user_id && !decoded?.sub && !decoded?.uid) {
+    throw Object.assign(new Error('Invalid test session token.'), { status: 403 });
   }
 
-  const decoded = decodeJwtPayload(token);
-  if (!decoded?.user_id && !decoded?.sub) {
-    throw Object.assign(new Error('Invalid authentication token.'), { status: 403 });
-  }
-
+  const id = decoded.user_id || decoded.sub || decoded.uid;
   return {
-    uid: decoded.user_id || decoded.sub,
-    email: decoded.email || `${decoded.user_id || decoded.sub}@glaze.local`,
+    uid: id,
+    email: decoded.email || `${id}@glaze.local`,
     name: decoded.name || decoded.email?.split('@')[0] || 'Glaze User',
     picture: decoded.picture || ''
   };
@@ -314,14 +286,11 @@ export default async function handler(req: any, res: any) {
     if (activePool) await initTables();
 
     if (req.method === 'GET' && route === '/database-status') {
-      initFirebaseAdmin();
       return res.status(200).json({
         postgresActive: activePool !== null && pgError === null,
         postgresError: pgError,
-        firebaseReady: firebaseAdminReady,
-        firebaseError: firebaseAdminErr,
         envDatabaseUrl: !!process.env.DATABASE_URL,
-        bucketReady: !!(process.env.BUCKET_URL || process.env.FILESTACK_API_KEY || process.env.VITE_FILESTACK_API_KEY)
+        bucketReady: !!(process.env.FILESTACK_API_KEY || process.env.VITE_FILESTACK_API_KEY)
       });
     }
 
