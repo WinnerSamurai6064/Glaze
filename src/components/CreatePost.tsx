@@ -4,7 +4,6 @@
  */
 
 import React, { useState } from 'react';
-import { PickerOverlay } from 'filestack-react';
 import { Image, Send, X } from 'lucide-react';
 import { User } from '../types';
 
@@ -13,17 +12,40 @@ interface CreatePostProps {
   onPostCreated: (content: string, image?: string) => void;
 }
 
-const FILESTACK_API_KEY = import.meta.env.VITE_FILESTACK_API_KEY || import.meta.env.FILESTACK_API_KEY || '';
+const FILESTACK_API_KEY = import.meta.env.VITE_FILESTACK_API_KEY || '';
 
 function getFilestackUrl(result: any): string {
-  const file = result?.filesUploaded?.[0] || result?.filesUploaded?.[0]?.url || result;
-  return file?.url || file?.handle ? file.url || `https://cdn.filestackcontent.com/${file.handle}` : '';
+  const file = result?.filesUploaded?.[0] || result;
+  if (!file) return '';
+  return file.url || (file.handle ? `https://cdn.filestackcontent.com/${file.handle}` : '');
+}
+
+function loadFilestackScript(): Promise<any> {
+  const existingClient = (window as any).filestack;
+  if (existingClient) return Promise.resolve(existingClient);
+
+  return new Promise((resolve, reject) => {
+    const existingScript = document.getElementById('filestack-js-sdk');
+    if (existingScript) {
+      existingScript.addEventListener('load', () => resolve((window as any).filestack));
+      existingScript.addEventListener('error', reject);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.id = 'filestack-js-sdk';
+    script.src = 'https://static.filestackapi.com/filestack-js/3.x.x/filestack.min.js';
+    script.async = true;
+    script.onload = () => resolve((window as any).filestack);
+    script.onerror = reject;
+    document.body.appendChild(script);
+  });
 }
 
 export function CreatePost({ currentUser, onPostCreated }: CreatePostProps) {
   const [content, setContent] = useState('');
   const [imageUrl, setImageUrl] = useState('');
-  const [showPicker, setShowPicker] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const CHAR_LIMIT = 280;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -33,15 +55,30 @@ export function CreatePost({ currentUser, onPostCreated }: CreatePostProps) {
     onPostCreated(content, imageUrl.trim() ? imageUrl.trim() : undefined);
     setContent('');
     setImageUrl('');
-    setShowPicker(false);
   };
 
-  const handleUploadDone = (result: any) => {
-    const uploadedUrl = getFilestackUrl(result);
-    if (uploadedUrl) {
-      setImageUrl(uploadedUrl);
+  const openFilestackPicker = async () => {
+    if (!FILESTACK_API_KEY || isUploading) return;
+
+    try {
+      setIsUploading(true);
+      const filestack = await loadFilestackScript();
+      const client = filestack.init(FILESTACK_API_KEY);
+      client.picker({
+        accept: ['image/*'],
+        maxFiles: 1,
+        fromSources: ['local_file_system', 'url'],
+        onUploadDone: (result: any) => {
+          const uploadedUrl = getFilestackUrl(result);
+          if (uploadedUrl) setImageUrl(uploadedUrl);
+          setIsUploading(false);
+        },
+        onClose: () => setIsUploading(false)
+      }).open();
+    } catch (error) {
+      console.error('Filestack picker failed:', error);
+      setIsUploading(false);
     }
-    setShowPicker(false);
   };
 
   const charLeft = CHAR_LIMIT - content.length;
@@ -50,19 +87,6 @@ export function CreatePost({ currentUser, onPostCreated }: CreatePostProps) {
   return (
     <div className="glass-panel rounded-2xl p-4 sm:p-5 border border-white/5 shadow-lg relative overflow-hidden transition-all duration-300">
       <div className="absolute top-0 left-0 right-0 h-[1.5px] bg-gradient-to-r from-transparent via-brand-orange/40 to-transparent" />
-
-      {showPicker && FILESTACK_API_KEY && (
-        <PickerOverlay
-          apikey={FILESTACK_API_KEY}
-          pickerOptions={{
-            accept: ['image/*'],
-            maxFiles: 1,
-            fromSources: ['local_file_system', 'url', 'imagesearch', 'instagram', 'facebook']
-          }}
-          onUploadDone={handleUploadDone}
-          onError={() => setShowPicker(false)}
-        />
-      )}
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="flex items-start space-x-3.5">
@@ -107,12 +131,12 @@ export function CreatePost({ currentUser, onPostCreated }: CreatePostProps) {
             <button
               id="post-creator-add-image-icon-btn"
               type="button"
-              onClick={() => setShowPicker(true)}
-              disabled={!FILESTACK_API_KEY}
+              onClick={openFilestackPicker}
+              disabled={!FILESTACK_API_KEY || isUploading}
               className={`p-2 rounded-xl transition-all ${
                 imageUrl
                   ? 'bg-brand-orange/15 text-brand-orange border border-brand-orange/25'
-                  : FILESTACK_API_KEY
+                  : FILESTACK_API_KEY && !isUploading
                     ? 'text-gray-400 hover:text-white hover:bg-white/[0.03]'
                     : 'text-gray-700 cursor-not-allowed border border-white/5'
               }`}
@@ -129,14 +153,7 @@ export function CreatePost({ currentUser, onPostCreated }: CreatePostProps) {
                   {charLeft}
                 </span>
                 <svg className="w-5 h-5 transform -rotate-90">
-                  <circle
-                    cx="10"
-                    cy="10"
-                    r="8"
-                    className="stroke-white/10"
-                    strokeWidth="2"
-                    fill="transparent"
-                  />
+                  <circle cx="10" cy="10" r="8" className="stroke-white/10" strokeWidth="2" fill="transparent" />
                   <circle
                     cx="10"
                     cy="10"
