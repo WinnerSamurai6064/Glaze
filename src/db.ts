@@ -3,54 +3,53 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { getFirebaseClient, signInWithPopup } from './firebase';
-import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { User, Post, Comment, Notification } from './types';
+
+const TEST_USER = {
+  uid: 'glaze_test_user',
+  sub: 'glaze_test_user',
+  user_id: 'glaze_test_user',
+  email: 'tester@glaze.local',
+  name: 'Glaze Tester',
+  picture: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=82'
+};
+
+function base64UrlEncode(value: object): string {
+  return btoa(JSON.stringify(value))
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+}
+
+function createTestToken(): string {
+  const header = base64UrlEncode({ alg: 'none', typ: 'JWT' });
+  const payload = base64UrlEncode(TEST_USER);
+  return `${header}.${payload}.glaze-test-session`;
+}
 
 export class GlazeDatabase {
   private localCurrentUser: User | null = null;
   private authReady: boolean = false;
   private authListeners: ((user: User | null) => void)[] = [];
+  private testToken: string = createTestToken();
 
   constructor() {
     this.init();
   }
 
   private async init() {
-    try {
-      const { auth } = await getFirebaseClient();
+    this.authReady = true;
+    const storedSession = localStorage.getItem('glaze_test_session');
 
-      onAuthStateChanged(auth, async (firebaseUser) => {
-        this.authReady = true;
-        if (firebaseUser) {
-          try {
-            const idToken = await firebaseUser.getIdToken();
-            const response = await fetch('/api/auth/register-or-login', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${idToken}`,
-                'Content-Type': 'application/json'
-              }
-            });
-            if (response.ok) {
-              this.localCurrentUser = await response.json();
-            } else {
-              console.error("Server authentication returned bad status");
-              this.localCurrentUser = null;
-            }
-          } catch (e) {
-            console.error("Auth state synchronization failed:", e);
-            this.localCurrentUser = null;
-          }
-        } else {
-          this.localCurrentUser = null;
-        }
+    if (storedSession === 'active') {
+      try {
+        await this.enterTestMode();
+      } catch (error) {
+        console.error('Test session restore failed:', error);
+        this.localCurrentUser = null;
         this.notifyListeners();
-      });
-    } catch (error) {
-      console.error('Firebase client initialization failed:', error);
-      this.authReady = true;
-      this.localCurrentUser = null;
+      }
+    } else {
       this.notifyListeners();
     }
   }
@@ -81,62 +80,50 @@ export class GlazeDatabase {
   }
 
   private async getHeaders(): Promise<HeadersInit> {
-    try {
-      const { auth } = await getFirebaseClient();
-      const user = auth.currentUser;
-      if (!user) return { 'Content-Type': 'application/json' };
-      const token = await user.getIdToken();
-      return {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      };
-    } catch {
-      return { 'Content-Type': 'application/json' };
-    }
+    return {
+      'Authorization': `Bearer ${this.testToken}`,
+      'Content-Type': 'application/json'
+    };
   }
 
-  // Retrieve current user
   public getCurrentUser(): User | null {
     return this.localCurrentUser;
   }
 
-  // Google Login flow
   public async loginWithGoogle(): Promise<User> {
-    const { auth, googleProvider } = await getFirebaseClient();
-    const credential = await signInWithPopup(auth, googleProvider);
-    const idToken = await credential.user.getIdToken();
+    return this.enterTestMode();
+  }
+
+  public async enterTestMode(): Promise<User> {
     const response = await fetch('/api/auth/register-or-login', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${idToken}`,
-        'Content-Type': 'application/json'
-      }
+      headers: await this.getHeaders()
     });
+
     if (!response.ok) {
-      throw new Error("Failed to register/authenticate user on PostgreSQL database storage.");
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Could not start Glaze test session.');
     }
+
     const dbUser = await response.json();
     this.localCurrentUser = dbUser;
+    localStorage.setItem('glaze_test_session', 'active');
     this.notifyListeners();
     return dbUser;
   }
 
-  // Logout session
   public async logout(): Promise<void> {
-    const { auth } = await getFirebaseClient();
-    await signOut(auth);
+    localStorage.removeItem('glaze_test_session');
     this.localCurrentUser = null;
     this.notifyListeners();
   }
 
-  // Get database diagnostic stats
   public async getDatabaseStatus() {
     const res = await fetch('/api/database-status');
     if (!res.ok) throw new Error("Status inquiry failed");
     return await res.json();
   }
 
-  // Retrieve list of posts
   public async getPosts(): Promise<Post[]> {
     const headers = await this.getHeaders();
     const res = await fetch('/api/posts', { headers });
@@ -149,7 +136,6 @@ export class GlazeDatabase {
     return all.filter(p => p.userId === userId || (p.repostedBy && p.repostedBy.includes(userId)));
   }
 
-  // Create single post
   public async createPost(content: string, image?: string): Promise<Post> {
     const headers = await this.getHeaders();
     const res = await fetch('/api/posts', {
@@ -164,7 +150,6 @@ export class GlazeDatabase {
     return await res.json();
   }
 
-  // Delete post
   public async deletePost(postId: string): Promise<void> {
     const headers = await this.getHeaders();
     const res = await fetch(`/api/posts/${postId}`, {
@@ -177,7 +162,6 @@ export class GlazeDatabase {
     }
   }
 
-  // Likes
   public async toggleLike(postId: string): Promise<string[]> {
     const headers = await this.getHeaders();
     const res = await fetch(`/api/posts/${postId}/like`, {
@@ -189,7 +173,6 @@ export class GlazeDatabase {
     return data.likedBy;
   }
 
-  // Reposts
   public async toggleRepost(postId: string): Promise<string[]> {
     const headers = await this.getHeaders();
     const res = await fetch(`/api/posts/${postId}/repost`, {
@@ -201,7 +184,6 @@ export class GlazeDatabase {
     return data.repostedBy;
   }
 
-  // Comments
   public async getComments(postId: string): Promise<Comment[]> {
     const res = await fetch(`/api/posts/${postId}/comments`);
     if (!res.ok) throw new Error("Comments failed to load");
@@ -222,7 +204,6 @@ export class GlazeDatabase {
     return await res.json();
   }
 
-  // Follow Actions
   public async toggleFollow(targetUserId: string): Promise<boolean> {
     const headers = await this.getHeaders();
     const res = await fetch(`/api/users/${targetUserId}/follow`, {
@@ -249,7 +230,6 @@ export class GlazeDatabase {
     return await res.json();
   }
 
-  // Edit Profiles
   public async updateProfile(
     displayName: string,
     bio: string,
@@ -271,7 +251,6 @@ export class GlazeDatabase {
     return user;
   }
 
-  // Notifications
   public async getNotifications(): Promise<Notification[]> {
     const headers = await this.getHeaders();
     const res = await fetch('/api/notifications', { headers });
@@ -288,21 +267,18 @@ export class GlazeDatabase {
     if (!res.ok) throw new Error("Mark read operation failed");
   }
 
-  // Find User Profile details
   public async getUserProfile(userIdOrUsername: string): Promise<User | null> {
     const res = await fetch(`/api/users/${userIdOrUsername}`);
     if (!res.ok) return null;
     return await res.json();
   }
 
-  // Get all users
   public async getAllUsers(): Promise<User[]> {
     const res = await fetch('/api/users');
     if (!res.ok) return [];
     return await res.json();
   }
 
-  // Universal search index
   public async searchUsersAndPosts(query: string): Promise<{ posts: Post[]; users: User[] }> {
     const posts = await this.getPosts();
     const users = await this.getAllUsers();
