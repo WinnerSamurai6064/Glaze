@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { X, Camera, MapPin, Link as LinkIcon, Edit2, Check, ShieldAlert } from 'lucide-react';
+import { X, Camera, MapPin, Link as LinkIcon, Edit2, Check } from 'lucide-react';
 import { User } from '../types';
 import { Cropper } from './Cropper';
 
@@ -39,14 +39,13 @@ export function ProfileEditModal({
     if (!file) return;
 
     if (!file.type.startsWith('image/')) {
-      onToast('Please select a valid image file formats');
+      onToast('Please select a valid image file');
       return;
     }
 
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
-        // Feed raw image to the cropper panel
         setCropSource(reader.result);
       }
     };
@@ -56,7 +55,7 @@ export function ProfileEditModal({
   const handleCropComplete = (croppedBase64: string) => {
     setAvatar(croppedBase64);
     setCropSource(null);
-    onToast('Cropped avatar staged!');
+    onToast('Profile photo updated.');
   };
 
   const triggerFileInput = () => {
@@ -78,26 +77,24 @@ export function ProfileEditModal({
       location.trim() || undefined,
       website.trim() || undefined
     );
-    onToast('Profile updated successfully!');
+    onToast('Profile updated successfully.');
     onClose();
   };
 
-  // Cover image URL custom simulation helper
+  // Existing cover image helper retained. This only changes copy, not auth or backend behavior.
   const handleCoverPaste = () => {
     const bannerPresets = [
       'https://images.unsplash.com/photo-1620121692029-d088224ddc74?w=1200',
       'https://images.unsplash.com/photo-1614027164847-1b2809eb7b9b?w=1200',
       'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=1200'
     ];
-    // Cycle array
     const nextBanner = bannerPresets[Math.floor(Math.random() * bannerPresets.length)];
     setCoverImage(nextBanner);
-    onToast('Simulated cover image cycler injected!');
+    onToast('Cover photo updated.');
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xl animate-fadeIn">
-      {/* If cropSource is active, take absolute precedence to show the Cropper interface right here */}
       {cropSource ? (
         <div className="animate-scaleIn z-50">
           <Cropper
@@ -108,19 +105,20 @@ export function ProfileEditModal({
         </div>
       ) : (
         <div className="w-full max-w-lg bg-[#080808] border border-white/10 rounded-2xl overflow-hidden shadow-2xl flex flex-col max-h-[90vh] animate-scaleIn">
-          {/* Header of Modal */}
-          <div className="flex items-center justify-between p-4 border-b border-white/15">
+          {/* Header */}
+          <div className="flex items-center justify-between p-4 border-b border-white/15 shrink-0">
             <div className="flex items-center space-x-3">
               <button
                 id="edit-profile-close-btn"
                 type="button"
                 onClick={onClose}
                 className="text-gray-400 hover:text-white p-1 rounded-full hover:bg-white/5 transition-all"
+                aria-label="Close edit profile"
               >
                 <X size={18} />
               </button>
               <h2 className="font-semibold text-base sm:text-lg text-white">
-                Edit Glaze Profile
+                Edit profile
               </h2>
             </div>
             
@@ -134,14 +132,14 @@ export function ProfileEditModal({
             </button>
           </div>
 
-          {/* Form Content body (Scrollable) */}
+          {/* Form content */}
           <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-6">
-            {/* Aspect Banner / Cover image custom input */}
-            <div className="relative rounded-xl overflow-hidden border border-white/10 group">
-              <div className="h-32 bg-zinc-900 overflow-hidden relative">
+            {/* Cover image and avatar preview */}
+            <div className="relative overflow-visible pb-14 sm:pb-16">
+              <div className="relative h-32 rounded-xl overflow-hidden border border-white/10 bg-zinc-900 group">
                 <img
                   src={coverImage}
-                  alt="Cover banner preview"
+                  alt="Cover photo preview"
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-500"
                 />
@@ -152,17 +150,17 @@ export function ProfileEditModal({
                     onClick={handleCoverPaste}
                     className="p-2.5 rounded-full bg-brand-orange text-white hover:scale-110 shadow-lg shadow-brand-orange/20 transition-all flex items-center space-x-1"
                     title="Change cover photo"
+                    aria-label="Change cover photo"
                   >
                     <Camera size={16} />
                   </button>
                 </div>
               </div>
 
-              {/* Float Avatar representation */}
-              <div className="absolute -bottom-10 left-4 sm:left-6 w-20 sm:w-24 h-20 sm:h-24 rounded-full border-4 border-[#080808] overflow-hidden bg-zinc-800 shadow-xl group/avatar">
+              <div className="absolute left-4 sm:left-6 bottom-0 z-20 w-20 sm:w-24 h-20 sm:h-24 rounded-full border-4 border-[#080808] bg-zinc-800 shadow-xl group/avatar overflow-hidden">
                 <img
                   src={avatar}
-                  alt="Avatar representation"
+                  alt="Profile photo preview"
                   referrerPolicy="no-referrer"
                   className="w-full h-full object-cover group-hover/avatar:opacity-80 transition-opacity"
                 />
@@ -172,6 +170,8 @@ export function ProfileEditModal({
                     type="button"
                     onClick={triggerFileInput}
                     className="p-1.5 rounded-full bg-brand-orange text-white"
+                    title="Change profile photo"
+                    aria-label="Change profile photo"
                   >
                     <Edit2 size={12} />
                   </button>
@@ -179,7 +179,6 @@ export function ProfileEditModal({
               </div>
             </div>
 
-            {/* Ghost input for local upload targeting avatar cropping */}
             <input
               id="cropper-local-file-input"
               type="file"
@@ -189,14 +188,11 @@ export function ProfileEditModal({
               className="hidden"
             />
 
-            {/* Spacer to absorb absolute float avatar shift */}
-            <div className="h-4" />
-
             {/* Basic user values */}
-            <div className="space-y-4 pt-2">
+            <div className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-mono uppercase tracking-widest text-brand-orange font-bold orange-glow-text">
-                  Cropper Local Upload
+                  Profile photo
                 </label>
                 <button
                   id="cropper-trigger-button"
@@ -205,7 +201,7 @@ export function ProfileEditModal({
                   className="w-full border border-dashed border-white/20 hover:border-brand-orange/40 p-2.5 rounded-xl text-xs font-mono text-gray-400 hover:text-white hover:bg-white/[0.02] transition-all flex items-center justify-center space-x-2"
                 >
                   <Camera size={14} className="text-brand-orange" />
-                  <span>Choose local file to crop as Avatar</span>
+                  <span>Choose profile photo</span>
                 </button>
               </div>
 
@@ -219,13 +215,13 @@ export function ProfileEditModal({
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   className="w-full bg-black border border-white/10 focus:border-brand-orange/40 focus:ring-0 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none transition-all"
-                  placeholder="The Nigerian"
+                  placeholder="Your name"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider font-mono">
-                  Bio Broadcaster
+                  Bio
                 </label>
                 <textarea
                   id="edit-profile-bio-textarea"
@@ -234,7 +230,7 @@ export function ProfileEditModal({
                   onChange={(e) => setBio(e.target.value)}
                   maxLength={170}
                   className="w-full bg-black border border-white/10 focus:border-brand-orange/40 focus:ring-0 text-white rounded-xl px-3.5 py-2.5 text-sm focus:outline-none resize-none transition-all font-sans"
-                  placeholder="Share details about your terminal..."
+                  placeholder="Tell people about yourself"
                 />
                 <span className="text-[9px] font-mono text-gray-500 float-right">
                   {bio.length}/170 characters
@@ -260,7 +256,7 @@ export function ProfileEditModal({
                 <div className="space-y-1">
                   <div className="flex items-center space-x-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider font-mono">
                     <LinkIcon size={12} className="text-brand-orange" />
-                    <span>Website link</span>
+                    <span>Website</span>
                   </div>
                   <input
                     id="edit-profile-website-input"
@@ -268,7 +264,7 @@ export function ProfileEditModal({
                     value={website}
                     onChange={(e) => setWebsite(e.target.value)}
                     className="w-full bg-black border border-white/10 focus:border-brand-orange/40 focus:ring-0 text-white rounded-xl px-3 py-2 text-xs focus:outline-none transition-all"
-                    placeholder="https://swordofmilligan.com"
+                    placeholder="https://your-site.com"
                   />
                 </div>
               </div>
