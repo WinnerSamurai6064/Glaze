@@ -19,6 +19,7 @@
     "express": "^4.21.2",
     "firebase": "^12.14.0",
     "firebase-admin": "^13.10.0",
+    "filestack-react": "^6.0.0",
     "lucide-react": "^0.546.0",
     "motion": "^12.23.24",
     "pg": "^8.21.0",
