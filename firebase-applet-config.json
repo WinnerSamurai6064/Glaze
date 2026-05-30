@@ -1,10 +1,9 @@
 {
-  "projectId": "emergent-guru-tcf5x",
-  "appId": "1:419867941758:web:830b5b382d026d1ec0312f",
-  "apiKey": "AIzaSyBmGwjRuAljS2mlTY0NV2pWGemtRMBWscQ",
-  "authDomain": "https://glaze-beta.vercel.app/",
-  "firestoreDatabaseId": "ai-studio-77b0565d-a44c-4c44-8386-93f75f676fbb",
-  "storageBucket": "emergent-guru-tcf5x.firebasestorage.app",
-  "messagingSenderId": "419867941758",
-  "measurementId": ""
+  "apiKey": "AIzaSyDWlLFf617LACpTviVQR_od0m6gFbiTZUw",
+  "authDomain": "glazedev-7f126.firebaseapp.com",
+  "projectId": "glazedev-7f126",
+  "storageBucket": "glazedev-7f126.firebasestorage.app",
+  "messagingSenderId": "487552515470",
+  "appId": "1:487552515470:web:22b22cf90e834a53b9b8df",
+  "measurementId": "G-4LEBVHQ5RQ"
 }
