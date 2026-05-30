@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { auth, googleProvider, signInWithPopup } from './firebase';
+import { getFirebaseClient, signInWithPopup } from './firebase';
 import { onAuthStateChanged, signOut } from 'firebase/auth';
 import { User, Post, Comment, Notification } from './types';
 
@@ -16,34 +16,43 @@ export class GlazeDatabase {
     this.init();
   }
 
-  private init() {
-    onAuthStateChanged(auth, async (firebaseUser) => {
-      this.authReady = true;
-      if (firebaseUser) {
-        try {
-          const idToken = await firebaseUser.getIdToken();
-          const response = await fetch('/api/auth/register-or-login', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${idToken}`,
-              'Content-Type': 'application/json'
+  private async init() {
+    try {
+      const { auth } = await getFirebaseClient();
+
+      onAuthStateChanged(auth, async (firebaseUser) => {
+        this.authReady = true;
+        if (firebaseUser) {
+          try {
+            const idToken = await firebaseUser.getIdToken();
+            const response = await fetch('/api/auth/register-or-login', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${idToken}`,
+                'Content-Type': 'application/json'
+              }
+            });
+            if (response.ok) {
+              this.localCurrentUser = await response.json();
+            } else {
+              console.error("Server authentication returned bad status");
+              this.localCurrentUser = null;
             }
-          });
-          if (response.ok) {
-            this.localCurrentUser = await response.json();
-          } else {
-            console.error("Server authentication returned bad status");
+          } catch (e) {
+            console.error("Auth state synchronization failed:", e);
             this.localCurrentUser = null;
           }
-        } catch (e) {
-          console.error("Auth state synchronization failed:", e);
+        } else {
           this.localCurrentUser = null;
         }
-      } else {
-        this.localCurrentUser = null;
-      }
+        this.notifyListeners();
+      });
+    } catch (error) {
+      console.error('Firebase client initialization failed:', error);
+      this.authReady = true;
+      this.localCurrentUser = null;
       this.notifyListeners();
-    });
+    }
   }
 
   public registerAuthListener(callback: (user: User | null) => void) {
@@ -72,9 +81,10 @@ export class GlazeDatabase {
   }
 
   private async getHeaders(): Promise<HeadersInit> {
-    const user = auth.currentUser;
-    if (!user) return { 'Content-Type': 'application/json' };
     try {
+      const { auth } = await getFirebaseClient();
+      const user = auth.currentUser;
+      if (!user) return { 'Content-Type': 'application/json' };
       const token = await user.getIdToken();
       return {
         'Authorization': `Bearer ${token}`,
@@ -92,6 +102,7 @@ export class GlazeDatabase {
 
   // Google Login flow
   public async loginWithGoogle(): Promise<User> {
+    const { auth, googleProvider } = await getFirebaseClient();
     const credential = await signInWithPopup(auth, googleProvider);
     const idToken = await credential.user.getIdToken();
     const response = await fetch('/api/auth/register-or-login', {
@@ -112,6 +123,7 @@ export class GlazeDatabase {
 
   // Logout session
   public async logout(): Promise<void> {
+    const { auth } = await getFirebaseClient();
     await signOut(auth);
     this.localCurrentUser = null;
     this.notifyListeners();
@@ -147,7 +159,7 @@ export class GlazeDatabase {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.error || "Broadcast creation failed");
+      throw new Error(err.error || "Post creation failed");
     }
     return await res.json();
   }
@@ -172,7 +184,7 @@ export class GlazeDatabase {
       method: 'POST',
       headers
     });
-    if (!res.ok) throw new Error("Post likeness modification failed");
+    if (!res.ok) throw new Error("Post like update failed");
     const data = await res.json();
     return data.likedBy;
   }
@@ -184,7 +196,7 @@ export class GlazeDatabase {
       method: 'POST',
       headers
     });
-    if (!res.ok) throw new Error("Post repost modification failed");
+    if (!res.ok) throw new Error("Repost update failed");
     const data = await res.json();
     return data.repostedBy;
   }
@@ -192,7 +204,7 @@ export class GlazeDatabase {
   // Comments
   public async getComments(postId: string): Promise<Comment[]> {
     const res = await fetch(`/api/posts/${postId}/comments`);
-    if (!res.ok) throw new Error("Comments stream failed to load");
+    if (!res.ok) throw new Error("Comments failed to load");
     return await res.json();
   }
 
@@ -205,7 +217,7 @@ export class GlazeDatabase {
     });
     if (!res.ok) {
       const err = await res.json();
-      throw new Error(err.error || "Comments submission failed");
+      throw new Error(err.error || "Comment submission failed");
     }
     return await res.json();
   }
@@ -217,7 +229,7 @@ export class GlazeDatabase {
       method: 'POST',
       headers
     });
-    if (!res.ok) throw new Error("Follow action toggle failed");
+    if (!res.ok) throw new Error("Follow action failed");
     const data = await res.json();
     return data.followed;
   }
@@ -252,7 +264,7 @@ export class GlazeDatabase {
       headers,
       body: JSON.stringify({ displayName, bio, avatar, coverImage, location, website })
     });
-    if (!res.ok) throw new Error("Profile updates failed to finalize");
+    if (!res.ok) throw new Error("Profile update failed");
     const user = await res.json();
     this.localCurrentUser = user;
     this.notifyListeners();
@@ -263,7 +275,7 @@ export class GlazeDatabase {
   public async getNotifications(): Promise<Notification[]> {
     const headers = await this.getHeaders();
     const res = await fetch('/api/notifications', { headers });
-    if (!res.ok) throw new Error("Could not download notifications signal");
+    if (!res.ok) throw new Error("Notifications failed to load");
     return await res.json();
   }
 
