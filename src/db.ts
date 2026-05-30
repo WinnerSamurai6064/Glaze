@@ -95,7 +95,7 @@ export class GlazeDatabase {
   }
 
   public async enterTestMode(): Promise<User> {
-    const response = await fetch('/api/auth/register-or-login', {
+    const response = await fetch('/api/test-session', {
       method: 'POST',
       headers: await this.getHeaders()
     });
