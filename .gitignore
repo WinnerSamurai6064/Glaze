@@ -4,5 +4,13 @@ dist/
 coverage/
 .DS_Store
 *.log
+
 .env*
 !.env.example
+
+# VM-only runtime config
+firebase-applet-config.json
+firebase.applet-config.json
+firebase-adminsdk*.json
+serviceAccountKey.json
+*.pem
